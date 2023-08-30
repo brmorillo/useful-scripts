@@ -1,6 +1,6 @@
 import os
 
-def rename_files(base_folder):
+def rename_files(base_folder, serie_name):
     season_counter = 1
     for season_folder in sorted(os.listdir(base_folder)):
         season_path = os.path.join(base_folder, season_folder)
@@ -18,7 +18,7 @@ def rename_files(base_folder):
             file_extension = os.path.splitext(episode_file)[1]
 
             # Renomear o arquivo do episódio
-            new_episode_name = f"{new_season_name}E{episode_counter:02}{file_extension}"
+            new_episode_name = f"{serie_name} S{season_counter:02}E{episode_counter:02}{file_extension}"
             new_episode_path = os.path.join(new_season_path, new_episode_name)
 
             os.rename(episode_path, new_episode_path)
@@ -29,5 +29,6 @@ def rename_files(base_folder):
 # Modificar essas variáveis de acordo com o seu caso
 
 base_folder = "PATH"
+serie_name = "SERIE NAME"
 
-rename_files(base_folder)
+rename_files(base_folder, serie_name)
