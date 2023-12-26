@@ -1,3 +1,2 @@
-@echo off
-cd C:\Users\bruno\Documents\GitHub\docker-images
+cd %USERPROFILE%\github\docker-images
 docker-compose up -d
