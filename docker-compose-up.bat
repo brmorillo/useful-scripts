@@ -1,2 +1,2 @@
-cd %USERPROFILE%\github\docker-images
+cd %USERPROFILE%\github\wallet-docker-images
 docker-compose up -d
