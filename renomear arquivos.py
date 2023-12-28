@@ -28,7 +28,7 @@ def rename_files(base_folder, serie_name):
 
 # Modificar essas variáveis de acordo com o seu caso
 
-base_folder = "PATH"
-serie_name = "SERIE NAME"
+base_folder = "C:\\Users\\bruno\\Downloads\\20 Years Old Beyond the Line"
+serie_name = "20 Years Old Beyond the Line"
 
 rename_files(base_folder, serie_name)
