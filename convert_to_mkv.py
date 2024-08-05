@@ -5,108 +5,162 @@ import sys
 
 def detect_gpu():
     try:
-        # Tenta identificar GPUs NVIDIA
-        nvidia_info = subprocess.check_output(['nvidia-smi', '-L']).decode('utf-8')
+        nvidia_info = subprocess.check_output(["nvidia-smi", "-L"]).decode("utf-8")
         if "GPU" in nvidia_info:
             return "nvidia"
     except Exception:
         pass
 
     try:
-        # Tenta identificar GPUs AMD via comando Windows
-        amd_info = subprocess.check_output(['wmic', 'path', 'win32_VideoController', 'get', 'name']).decode('utf-8')
+        amd_info = subprocess.check_output(
+            ["wmic", "path", "win32_VideoController", "get", "name"]
+        ).decode("utf-8")
         if "AMD" in amd_info or "Radeon" in amd_info:
             return "amd"
     except Exception:
         pass
 
-    # Se não encontrar GPUs NVIDIA ou AMD, assume uso da CPU
     return "cpu"
 
-def verifica_ffmpeg():
+def check_ffmpeg():
     try:
-        # Tenta capturar a versão do FFmpeg
-        ffmpeg_version_info = subprocess.check_output(['ffmpeg', '-version'], stderr=subprocess.STDOUT).decode('utf-8')
-        for line in ffmpeg_version_info.split('\n'):
-            if 'ffmpeg version' in line:
+        ffmpeg_version_info = subprocess.check_output(
+            ["ffmpeg", "-version"], stderr=subprocess.STDOUT
+        ).decode("utf-8")
+        for line in ffmpeg_version_info.split("\n"):
+            if "ffmpeg version" in line:
                 return line
     except FileNotFoundError:
-        return "ffmpeg não localizado em c:/Program Files/ffmpeg/bin"
-    return "ffmpeg não localizado"
+        return "FFmpeg not found in PATH"
+    return "FFmpeg not found"
 
-# Configura o analisador de argumentos
-parser = argparse.ArgumentParser(description="Converte arquivos de vídeo para um formato específico.")
-parser.add_argument('-d', '--directory', type=str, required=True, help="Diretório onde os vídeos estão localizados.")
-parser.add_argument('-i', '--input_formats', nargs='*', default=None, help="Formatos de entrada dos arquivos a serem convertidos (ex: .mp4 .ts). Se nenhum for fornecido, todos os arquivos de vídeo serão convertidos.")
-parser.add_argument('-o', '--output_format', type=str, default='.mkv', help="Formato de saída dos arquivos convertidos (padrão: .mkv).")
+def get_original_bitrate(video_file):
+    try:
+        result = subprocess.check_output(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=bit_rate", "-of", "default=noprint_wrappers=1:nokey=1", video_file]
+        ).decode("utf-8").strip()
+        return f"{int(result) // 1000}k"
+    except Exception as e:
+        print(f"Error getting original bitrate: {e}")
+        return None
+
+parser = argparse.ArgumentParser(
+    description="Convert video files to a specific format."
+)
+parser.add_argument(
+    "-d",
+    "--directory",
+    type=str,
+    required=True,
+    help="Directory where the videos are located.",
+)
+parser.add_argument(
+    "-i",
+    "--input_formats",
+    nargs="*",
+    default=None,
+    help="Input formats of the files to be converted (e.g., .mp4 .ts). If none are provided, all video files will be converted.",
+)
+parser.add_argument(
+    "-o",
+    "--output_format",
+    type=str,
+    default=".mkv",
+    help="Output format of the converted files (default: .mkv).",
+)
+parser.add_argument(
+    "-b",
+    "--bitrate",
+    type=str,
+    default=None,
+    help="Bitrate for the video (e.g., 600k). If not provided, the original bitrate is used.",
+)
 args = parser.parse_args()
 
-# Exibe a versão do FFmpeg
-ffmpeg_version = verifica_ffmpeg()
+ffmpeg_version = check_ffmpeg()
 print(ffmpeg_version)
 
-# Define o diretório onde estão os arquivos de vídeo
-diretorio = args.directory
+directory = args.directory
 
-# Lista todos os arquivos de vídeo em todos os subdiretórios
-arquivos_para_converter = []
-for root, dirs, files in os.walk(diretorio):
+files_to_convert = []
+for root, dirs, files in os.walk(directory):
     for file in files:
-        # Verifica se o arquivo não está no formato de saída
         if not file.endswith(args.output_format):
-            # Verifica todos os arquivos se nenhum formato de entrada foi especificado
-            if args.input_formats is None or any(file.endswith(ext) for ext in args.input_formats):
-                arquivos_para_converter.append(os.path.join(root, file))
+            if args.input_formats is None or any(
+                file.endswith(ext) for ext in args.input_formats
+            ):
+                files_to_convert.append(os.path.join(root, file))
 
-# Total de arquivos a serem convertidos
-total_arquivos = len(arquivos_para_converter)
-print(f"Iniciando a conversão de {total_arquivos} arquivos...")
+total_files = len(files_to_convert)
+print(f"Starting conversion of {total_files} files...")
 
 gpu_type = detect_gpu()
-print(f"Usando {gpu_type.upper()} para processamento.")
+print(f"Using {gpu_type.upper()} for processing.")
 
-# Escolhe o encoder baseado no tipo de GPU ou CPU
 if gpu_type == "nvidia":
     video_encoder = "hevc_nvenc"
+    preset = "slow"
 elif gpu_type == "amd":
     video_encoder = "hevc_amf"
+    preset = "slow"
 else:
-    video_encoder = "libx265"  # Pode usar libx264 para H.264
+    video_encoder = "libx265"
+    preset = "veryslow"
 
-# Se houver arquivos para converter, continua o processo
-if total_arquivos > 0:
-    # Cria o diretório "old" se ele não existir
-    diretorio_old = os.path.join(diretorio, 'old')
-    if not os.path.exists(diretorio_old):
-        os.mkdir(diretorio_old)
+if total_files > 0:
+    old_directory = os.path.join(directory, "old")
+    if not os.path.exists(old_directory):
+        os.mkdir(old_directory)
 
-    # Percorre todos os arquivos elegíveis e converte um a um
-    for arquivo in arquivos_para_converter:
-        nome_completo = arquivo
-        nome_saida = os.path.splitext(nome_completo)[0] + args.output_format
-        print(f"Arquivo iniciado o processamento: {os.path.basename(nome_completo)}")
-        
-        # Comando para converter o arquivo usando o encoder escolhido
-        comando = ['ffmpeg', '-i', nome_completo, '-c:v', video_encoder, '-c:a', 'copy', nome_saida]
-        process = subprocess.Popen(comando, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+    for file in files_to_convert:
+        full_name = file
+        output_name = os.path.splitext(full_name)[0] + args.output_format
+        print(f"Processing file: {os.path.basename(full_name)}")
 
-        # Captura e exibe apenas a linha mais recente dos logs do FFmpeg
+        video_bitrate = args.bitrate if args.bitrate else get_original_bitrate(full_name)
+
+        command = [
+            "ffmpeg",
+            "-i",
+            full_name,
+            "-c:v",
+            video_encoder,
+            "-b:v",
+            video_bitrate,
+            "-preset",
+            preset,
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            output_name,
+        ]
+        print(f"Executed command: {' '.join(command)}")
+
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+        )
+
         for line in process.stdout:
-            if 'frame=' in line:
-                sys.stdout.write('\r' + line.strip())
-                sys.stdout.flush()
+            print(line.strip())
 
-        process.wait()  # Aguarda a conclusão do processo FFmpeg
-        print(f"\nArquivo finalizado o processamento: {os.path.basename(nome_completo)}")
-        
-        # Prepara o diretório 'old' correspondente ao arquivo
-        diretorio_old_local = os.path.join(os.path.dirname(nome_completo), 'old')
-        if not os.path.exists(diretorio_old_local):
-            os.mkdir(diretorio_old_local)
-        
-        # Move o arquivo original para a pasta "old"
-        os.rename(nome_completo, os.path.join(diretorio_old_local, os.path.basename(arquivo)))
+        process.wait()
+        print(f"\nFinished processing file: {os.path.basename(full_name)}")
 
-    print("Conversão concluída!")
+        if os.path.getsize(output_name) == 0:
+            print(f"Error: The file {output_name} was not created correctly.")
+        else:
+            old_local_directory = os.path.join(os.path.dirname(full_name), "old")
+            if not os.path.exists(old_local_directory):
+                os.mkdir(old_local_directory)
+
+            os.rename(
+                full_name, os.path.join(old_local_directory, os.path.basename(file))
+            )
+
+    print("Conversion completed!")
 else:
-    print("Nenhum arquivo para converter encontrado.")
+    print("No files to convert found.")
