@@ -1,7 +1,7 @@
 # Define as variáveis
-$token = "your-github-token"
-$orgName = "your-org-name"
-$baseDir = "your-base-dir"
+$token = "ghp_...."
+$orgName = "SmartEnvios"
+$baseDir = "C:\github\smartenvios"
 
 # Cria a pasta base se não existir
 if (-not (Test-Path $baseDir)) {
@@ -27,3 +27,8 @@ foreach ($repo in $repos) {
         cd $baseDir
     }
 }
+#input string
+# Wait for user input before closing the script
+Write-Host "Press any key to exit..."
+# Wait for user input
+PAUSE
